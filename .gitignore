@@ -1,0 +1,11 @@
+
+.venv/
+
+# 모든 하위 디렉토리에 있는 __pycache__ 폴더 무시
+*/__pycache__/
+
+# txt 확장자를 가진 모든 파일 무시
+*.txt 
+
+# ! 를 파일명 앞에 쓰면 앞의 규칙에서 제외
+!requirements.txt
