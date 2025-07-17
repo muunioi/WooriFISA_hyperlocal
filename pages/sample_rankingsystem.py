@@ -5,10 +5,7 @@ import pandas as pd
 
 # 현재 파일 위치 기준으로 상위 디렉토리의 data/test.csv 접근
 base_dir = os.path.dirname(os.path.abspath(__file__))  # 현재 파일 위치
-# # file_path = os.path.join(base_dir, '..', 'data', 'test.csv')
-# file_path = os.path.normpath(file_path)  # 윈도우/리눅스 호환
-
-# df = pd.read_csv(file_path)
+print(base_dir)
 
 
 # 전체 dong에 기본값 0인 grade column 추가 (추후 점수을 합산할 data frame)
@@ -45,7 +42,6 @@ for i,pri in enumerate(priority):
     total_dong_info = total_dong_info.merge(df_sorted_for_merge, on='dong_info', how='right', suffixes=('_old', ''))
     total_dong_info['grade'] = total_dong_info['grade_old'] + total_dong_info['grade'].fillna(0)    
 
-    total_dong_info['grade'] += df_sorted["grade"]
     if "grade_old" in total_dong_info.columns:
         total_dong_info = total_dong_info.drop(["grade_old"], axis= 1)
 
@@ -58,8 +54,8 @@ for i,pri in enumerate(priority):
     # break
     dfs[f'{pri}_df']  = df_sorted
     # print(dfs[f'{pri}_df'])
-    print(total_dong_info)
-    print("i")
+    # print(total_dong_info)
+    # print("i")
 
 total_dong_info = total_dong_info.sort_values(by='grade', ascending=False)
 
