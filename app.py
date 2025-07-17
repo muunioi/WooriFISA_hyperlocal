@@ -31,10 +31,19 @@ def sidebar_input() -> tuple[str, str, str] :
     st.sidebar.write(f"You selected: {option1} > {option2} > {option3}")
     
     submit_btn = st.sidebar.button('찾아보기')
+
+
     return option1, option2, option3, submit_btn
 
 
 result = sidebar_input()
+
+
+
+with st.expander("📍 사용 설명서? "):
+    st.markdown("""
+    - 토글 있네~~~
+    """)
 
 ## RANKING ##
 import streamlit as st
