@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import plotly.express as px
 import os
-
+import numpy as np
 
 #### HitMap ####
 
@@ -13,9 +13,17 @@ with open('C://ITStudy//01_python//streamlit_demo//hangjeongdong_서울특별시
     seoul_geo = json.load(f)
 
 # 전체 동 리스트 확보
-dong_list = [feature['properties']['adm_nm'].replace('.', '·') for feature in seoul_geo['features']]
-full_data = pd.DataFrame({'full_name': dong_list})
+# dong_list = [feature['properties']['adm_nm'].replace('.', '·') for feature in seoul_geo['features']]
+# full_data = pd.DataFrame({'full_name': dong_list})
 
+dong_gu = pd.read_csv('.//data//dong_gu_info.csv')
+dong_gu['full_name'] = '서울특별시 ' + dong_gu['gu_info'] + ' ' + dong_gu['dong_info']
+dong_gu['full_name'] = dong_gu['full_name'].str.replace('.', '·')
+full_data = dong_gu[['full_name']].copy()
+
+missing_dongs = [feature['properties']['adm_nm'] for feature in seoul_geo['features'] 
+                 if feature['properties']['adm_nm'].replace('.', '·') not in dong_gu['full_name'].values]
+print(missing_dongs)
 
 # 데이터 디렉토리 설정
 
@@ -31,6 +39,8 @@ category_files = {
 }
 
 #categor_colors = ['BuGn', 'YIOrRd', 'Cividis', 'PuRd', 'amp', 'Blues', 'Mint', 'deep']
+# 기존 count 컬럼에서 log 변환 (1 더해주는 건 log(0) 에러 방지)
+
 
 category_colors = {
     '공원': 'BuGn',
@@ -54,6 +64,7 @@ for category, filepath in category_files.items():
 
         merged = full_data.merge(df[['full_name', 'count']], on='full_name', how='left')
         merged['count'] = merged['count'].fillna(0)
+        merged['log_count'] = np.log1p(merged['count'])  # == log(count + 1)
 
         ## 카테고리와 일치하는 컬러맵 선택
         cmap = category_colors.get(category, 'Oranges')
@@ -62,8 +73,10 @@ for category, filepath in category_files.items():
             merged,
             geojson=seoul_geo,
             locations='full_name',
-            color='count',
+            color='log_count',
             color_continuous_scale=cmap,
+            hover_data={'full_name': True, 'count': True, 'log_count': False},
+
             featureidkey='properties.adm_nm',
             mapbox_style='carto-positron',
             zoom=9.5,
