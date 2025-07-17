@@ -2,6 +2,7 @@ import os
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import uuid
 
 ### 1. 데이터 불러오기 및 초기 설정 ###
 @st.cache_data
@@ -18,10 +19,10 @@ def load_data(base_dir):
 
     dfs = {}
     for name, file in filenames.items():
-        path = os.path.join(base_dir, 'data', file)
+        path = os.path.join(base_dir, '..', 'data', file)
         dfs[name] = pd.read_csv(path)
 
-    total_dong_info = pd.read_csv(os.path.join(base_dir, 'data', 'dong_gu_info.csv'))
+    total_dong_info = pd.read_csv(os.path.join(base_dir,'..', 'data', 'dong_gu_info.csv'))
     total_dong_info["grade"] = 0
 
     return dfs, total_dong_info
@@ -85,7 +86,7 @@ def draw_podium_chart(top3_dongs):
         yaxis=dict(title="", showticklabels=False),
         plot_bgcolor='rgba(0,0,0,0)',
     )
-    st.plotly_chart(fig)
+    st.plotly_chart(fig, key=f'{uuid.uuid4()}')
 
 ### 5. 바 차트 시각화 ###
 def draw_comparison_chart(dong, seoul_df, topics):
@@ -112,48 +113,97 @@ def draw_comparison_chart(dong, seoul_df, topics):
 
 ### 6. 메인 앱 실행 ###
 def main():
+    
     base_dir = os.path.dirname(os.path.abspath(__file__))
     dfs, total_dong_info = load_data(base_dir)
 
-    priority = ["park", "lamp", "cafe"]
+    
     weight = [0.5, 0.3, 0.2]
-    total_dong_info = calculate_grades(dfs, total_dong_info, priority, weight)
+    
 
     option1, option2, option3, submit = sidebar_input()
-
+    tmp_dict = {
+        '🌳 공원': 'park', 
+        '👟 헬스장': 'gym',
+        '🧋 카페': 'cafe', 
+        '🐤 안전': 'lamp', 
+        '🏪 편의점': 'store'
+    }
+    
     with st.expander("📍 사용 설명서?"):
         st.markdown("- 원하는 조건을 선택해 동네를 추천받아보세요!")
+    
+    if option1 and option2 and option3 and submit :
+    # if not option1 or not option2 or not option3 or not submit :
+        # st.stop()
+        p1 = tmp_dict[option1] if option1 in tmp_dict else ''
+        p2 = tmp_dict[option2] if option2 in tmp_dict else ''
+        p3 = tmp_dict[option3] if option3 in tmp_dict else ''
+        
+        priority = [p1, p2, p3]
+        
+        total_dong_info = calculate_grades(dfs, total_dong_info, priority, weight)
+        top3 = total_dong_info.head(3)['dong_info'].tolist()
+        
 
-    top3 = total_dong_info.head(3)['dong_info'].tolist()
-    draw_podium_chart(top3)
+        # draw_podium_chart(top3)
+        st.session_state.priority = priority
+        st.session_state.weight = weight
+        st.session_state.total_dong_info = total_dong_info
+        st.session_state.top3 = total_dong_info.head(3)['dong_info'].tolist()
+        st.session_state.selected_dong = st.session_state.top3[0]  # 1위 자동 선택
+        
+        
 
-    # 서울 평균 계산용
-    topic_keys = ["store", "gym", "park", "cafe", "lamp", "bus", "subway"]
-    topics = []
-    for key in topic_keys:
-        df = dfs[f"{key}_df"].rename(columns={'count': f'{key}_count'})
-        topics.append((f'{key}_count', df))
+        # 서울 평균 계산용
+        topic_keys = ["store", "gym", "park", "cafe", "lamp", "bus", "subway"]
+        topics = []
+        for key in topic_keys:
+            df = dfs[f"{key}_df"].rename(columns={'count': f'{key}_count'})
+            topics.append((f'{key}_count', df))
+        
+        seoul_df = pd.DataFrame({col: df[col].mean() for col, df in topics}, index=[0])
+        
+        st.session_state.seoul_df = seoul_df
+        st.session_state.topics = topics
 
-    seoul_df = pd.DataFrame({col: df[col].mean() for col, df in topics}, index=[0])
+        # draw_comparison_chart(top3[0], seoul_df, topics)
 
-    # 사용자 직접 입력
-    input_dong = st.text_input("행정동을 입력하세요:")
-    if input_dong:
-        if input_dong in total_dong_info['dong_info'].values:
-            draw_comparison_chart(input_dong, seoul_df, topics)
-        else:
-            st.warning("존재하는 행정동을 입력해 주세요.")
+        # # 사용자 직접 입력
+        # # input_dong = st.text_input("행정동을 입력하세요:")
+        # # if input_dong:
+        # #     if input_dong in total_dong_info['dong_info'].values:
+        # #         draw_comparison_chart(input_dong, seoul_df, topics)
+        # #     else:
+        # #         st.warning("존재하는 행정동을 입력해 주세요.")
 
-    # TOP 3 버튼
-    cols = st.columns(3)
-    clicked = False
-    for i, dong in enumerate(top3):
-        if cols[i].button(f"{dong}"):
-            draw_comparison_chart(dong, seoul_df, topics)
-            clicked = True
+        # # TOP 3 버튼
+        # cols = st.columns(3)
+        # clicked = False
+        print("click1")
+        # st.button("hey")
+        # for i, dong in enumerate(top3):
+        #     if cols[i].button(f"{dong}"):
+        #         print("click", dong)
+        #         draw_comparison_chart(dong, seoul_df, topics)
+        #         clicked = True
 
-    if not clicked and not input_dong:
-        st.info("자치구 버튼을 클릭하면 해당 구와 서울 평균이 비교됩니다.")
+    # 2. 버튼은 항상 렌더링되도록 (데이터가 준비된 경우만)
+    if 'top3' in st.session_state:
+        draw_podium_chart(st.session_state.top3)
+        st.markdown("### 🏆 TOP 3 지역")
+        cols = st.columns(3)
+        
+        for i, dong in enumerate(st.session_state.top3):
+            if cols[i].button(f"{dong}"):
+                st.session_state.selected_dong = dong
+                print(f"✅ 버튼 클릭됨: {dong}")
+    
+    # 3. 선택된 동에 대한 바 차트 출력
+    if 'selected_dong' in st.session_state:
+        draw_comparison_chart(st.session_state.selected_dong, st.session_state.seoul_df, st.session_state.topics)
+    # if not clicked:
+    #     st.info("자치구 버튼을 클릭하면 해당 구와 서울 평균이 비교됩니다.")
 
 if __name__ == "__main__":
     main()
