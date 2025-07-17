@@ -9,7 +9,7 @@ import numpy as np
 
 
 # GeoJSON 불러오기
-with open('C:\ITStudy\Project\WooriFISA_hyperlocal\data\hangjeongdong.geojson', 'r') as f:
+with open('.//data//hangjeongdong.geojson', 'r') as f:
     seoul_geo = json.load(f)
 
 # 전체 동 리스트 확보

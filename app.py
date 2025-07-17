@@ -1,299 +1,231 @@
+import os
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import matplotlib.pyplot as plt
-import matplotlib
-import plotly.express as px
-import plotly.figure_factory as ff
-import os
+import uuid
 
-# 현재 파일 위치 기준으로 상위 디렉토리의 data/test.csv 접근
-base_dir = os.path.dirname(os.path.abspath(__file__))  # 현재 파일 위치
-#print(base_dir)
-# 전체 dong에 기본값 0인 grade column 추가 (추후 점수을 합산할 data frame)
-#total_dong_info = pd.read_csv(f'{base_dir}/../data/dong_gu_info.csv')
+### 1. 데이터 불러오기 및 초기 설정 ###
+@st.cache_data
+def load_data(base_dir):
+    filenames = {
+        "park_df": "data_2_cal.csv",
+        "lamp_df": "data_5_cal.csv",
+        "cafe_df": "data_6_cafe_cal.csv",
+        "gym_df": "data_6_gym_cal.csv",
+        "store_df": "data_6_store_cal.csv",
+        "bus_df": "data_7_cal.csv",
+        "subway_df": "data_9_cal.csv"
+    }
 
+    dfs = {}
+    for name, file in filenames.items():
+        path = os.path.join(base_dir, 'data', file)
+        dfs[name] = pd.read_csv(path)
 
-# total_dong_info = pd.read_csv('.//data//dong_gu_info.csv')
-total_dong_info = os.path.join(base_dir, 'data', 'dong_gu_info.csv')
-total_dong_info = pd.read_csv(total_dong_info)
+    total_dong_info = pd.read_csv(os.path.join(base_dir, 'data', 'dong_gu_info.csv'))
+    total_dong_info["grade"] = 0
 
-total_dong_info["grade"] = 0
-filenames = ["data_2_cal","data_5_cal","data_6_cafe_cal","data_6_gym_cal","data_6_store_cal", "data_7_cal","data_9_cal"]
-df_name = ["park_df","lamp_df", "cafe_df", "gym_df", "store_df", "bus_df", "subway_df"]
-dfs = {}
-for i, name in enumerate(df_name) :
-    tmp_dir = os.path.join(base_dir, 'data', f'{filenames[i]}.csv')
-    dfs[name] = pd.read_csv(tmp_dir)
+    return dfs, total_dong_info
 
-priority = ["park","lamp","cafe"]
-weight = [0.5, 0.3, 0.2]
-def cal_rank_to_grade(rank, w, l):
-    return ((rank * 100) / l) * w # ((역순위 * 100(점)) / 길이) * 가중치
+### 2. 점수 계산 함수 ###
+def calculate_grades(dfs, total_dong_info, priority, weight):
+    def cal_rank_to_grade(rank, w, l):
+        return ((rank * 100) / l) * w
 
+    for i, pri in enumerate(priority):
+        df_sorted = dfs[f'{pri}_df'].sort_values(by='num_per_area', ascending=False)
+        df_sorted['rank'] = df_sorted['num_per_area'].rank(method='min', ascending=True).astype(int)
+        df_sorted['grade_tmp'] = df_sorted.apply(
+            lambda row: cal_rank_to_grade(row["rank"], weight[i], len(df_sorted)), axis=1)
 
-for i,pri in enumerate(priority):
-    df_sorted = dfs[f'{pri}_df'].sort_values(by='num_per_area', ascending=False)
-    df_sorted['rank'] = df_sorted['num_per_area'].rank(method='min', ascending=True).astype(int)
-    df_sorted['grade_tmp'] = df_sorted.apply(lambda row: cal_rank_to_grade(row["rank"], weight[i], len(df_sorted)), axis=1)
-    
-    
-    # 선택 컬럼만 merge
-    df_sorted_for_merge = df_sorted[['dong_info', 'grade_tmp', 'count']].rename(columns={'grade_tmp': f'{pri}_grade', 'count': f'{pri}_count'})
-    total_dong_info = total_dong_info.merge(df_sorted_for_merge, on='dong_info', how='left')
-    
+        df_merge = df_sorted[['dong_info', 'grade_tmp', 'count']].rename(
+            columns={'grade_tmp': f'{pri}_grade', 'count': f'{pri}_count'})
+        total_dong_info = total_dong_info.merge(df_merge, on='dong_info', how='left')
 
-# grade 합산
-grade_cols = [f"{pri}_grade" for pri in priority]
-total_dong_info["grade"] = total_dong_info[grade_cols].sum(axis=1, skipna=True)
+    grade_cols = [f"{pri}_grade" for pri in priority]
+    total_dong_info["grade"] = total_dong_info[grade_cols].sum(axis=1, skipna=True)
+    return total_dong_info.sort_values(by='grade', ascending=False)
 
-# 정렬
-total_dong_info = total_dong_info.sort_values(by='grade', ascending=False)
-
-
-## INPUT ##
-#def get_user_preferance() :
-
-option_list = ['🌳 공원', '👟 헬스장', '🧋 카페', '🐤 안전', '🏪 편의점']
-
-def sidebar_input() -> tuple[str, str, str] :
-    
-    # st.sidebar.markdown("""
-    # <style>
-    #     [data-testid="stSidebar"][aria-expanded="false"] > div:first-child {
-    #         width: 350px;
-    #         margin-left: -350px;
-    #     }
-    # </style>
-    # """, unsafe_allow_html=True)
-
+### 3. 사이드바 입력 ###
+def sidebar_input():
+    option_list = ['🌳 공원', '👟 헬스장', '🧋 카페', '🐤 안전', '🏪 편의점']
     st.sidebar.markdown("### 내가 원하는 슬세권 포인트는?")
-    option1 = st.sidebar.selectbox("1순위", option_list, index=None, placeholder="Select contact method...")
-    option2 = st.sidebar.selectbox("2순위", [x for x in option_list if x != option1], index=None, placeholder="Select contact method...")
-    option3 = st.sidebar.selectbox("3순위", [x for x in option_list if x not in (option1, option2)], index=None, placeholder="Select contact method...")
-            
-    st.sidebar.write(f"You selected: {option1} > {option2} > {option3}")
-    
+    option1 = st.sidebar.selectbox("1순위", option_list, index=None)
+    option2 = st.sidebar.selectbox("2순위", [x for x in option_list if x != option1], index=None)
+    option3 = st.sidebar.selectbox("3순위", [x for x in option_list if x not in (option1, option2)], index=None)
     submit_btn = st.sidebar.button('찾아보기')
-
-
     return option1, option2, option3, submit_btn
 
-
-result = sidebar_input()
-
-
-
-with st.expander("📍 사용 설명서? "):
-    st.markdown("""
-    - 토글 있네~~~
-    """)
-
-## RANKING ##
-import streamlit as st
-import plotly.graph_objects as go
-
-# 순위별 지역명 - 노원구(1위), 동작구(2위), 중랑구(3위)
-regions = ['노원구 00동', '동작구 00동', '중랑구 00동']
-colors = ["gold", "silver", "peru"]
-heights = [2, 1.5, 1]  # 시각적 높이 설정
-
-# 시상대 순서: 2등 (좌), 1등 (가운데), 3등 (우)
-x_labels = ["🥈 2위", "🥇 1위", "🥉 3위"]
-ordered_regions = [regions[1], regions[0], regions[2]]
-ordered_colors = [colors[1], colors[0], colors[2]]
-ordered_heights = [heights[1], heights[0], heights[2]]
-
-fig = go.Figure()
-
-for i in range(3):
-    fig.add_trace(go.Bar(
-        x=[x_labels[i]],
-        y=[ordered_heights[i]],
-        marker_color=ordered_colors[i],
-        text=ordered_regions[i],
-        textposition='inside',
-        hovertext=f"{ordered_regions[i]}",
-        name=ordered_regions[i],
-        hoverinfo="skip"
-    ))
-
-fig.update_layout(
-    title="슬세권 TOP 3",
-    height=350,
-    showlegend=False,
-    bargap=0,  # 간격 제거
-    xaxis=dict(title="", tickfont=dict(size=14)),
-    yaxis=dict(title="", showticklabels=False),
-    plot_bgcolor='rgba(0,0,0,0)',
-)
-
-st.plotly_chart(fig)
-
-
-## BAR ##
-animals=['giraffes', 'orangutans', 'monkeys', 'girafffsdes', 'ordafangutans', 'monkdseys']
-
-fig = go.Figure(data=[
-    go.Bar(name='SF Zoo', x=animals, y=[20, 14, 23, 10, 15, 15]),
-    go.Bar(name='LA Zoo', x=animals, y=[12, 18, 29, 11, 12, 48])
-])
-# Change the bar mode
-fig.update_layout(barmode='group')
-st.plotly_chart(fig)
-
-
-## Bar chart ## 
-
-# home_df = pd.DataFrame(home)
-tmp_store = os.path.join(base_dir, 'data', 'data_6_store_cal.csv')
-store_df = pd.read_csv(tmp_store)
-tmp_gym = os.path.join(base_dir, 'data', 'data_6_gym_cal.csv')
-gym_df = pd.read_csv(tmp_gym)
-tmp_park = os.path.join(base_dir, 'data', 'data_2_cal.csv')
-park_df = pd.read_csv(tmp_park)
-tmp_cafe = os.path.join(base_dir, 'data', 'data_6_cafe_cal.csv')
-cafe_df = pd.read_csv(tmp_cafe)
-#  crime_df = pd.DataFrame(crime)
-tmp_lamp = os.path.join(base_dir, 'data', 'data_5_cal.csv')
-lamp_df = pd.read_csv(tmp_lamp)
-tmp_bus = os.path.join(base_dir, 'data', 'data_7_cal.csv')
-bus_df = pd.read_csv(tmp_bus)
-tmp_subway = os.path.join(base_dir, 'data', 'data_9_cal.csv')
-subway_df = pd.read_csv(tmp_subway)
-
-# count 열이 겹치면 안되므로
-store_df.rename(columns = {'count':'store_count'}, inplace=True)
-gym_df.rename(columns = {'count':'gym_count'}, inplace = True)
-park_df.rename(columns = {'count':'park_count'}, inplace = True)
-cafe_df.rename(columns = {'count':'cafe_count'}, inplace = True)
-lamp_df.rename(columns = {'count':'lamp_count'}, inplace = True)
-bus_df.rename(columns = {'count':'bus_count'}, inplace = True)
-subway_df.rename(columns = {'count':'subway_count'}, inplace = True)
-
-# 각 카운트 수의 평균 -> 서울시 평균 개수
-store_avg = store_df['store_count'].mean()
-gym_avg = gym_df['gym_count'].mean()
-park_avg = park_df['park_count'].mean()
-cafe_avg = cafe_df['cafe_count'].mean()
-lamp_avg = lamp_df['lamp_count'].mean()
-bus_avg = bus_df['bus_count'].mean()
-subway_avg = subway_df['subway_count'].mean()
-
-# 서울시 평균 count 수 DataFrame 생성
-seoul_df = pd.DataFrame([{
-    'store_count' : store_avg,
-    'gym_count' : gym_avg,
-    'park_count' : park_avg,
-    'cafe_count' : cafe_avg,
-    'lamp_count' : lamp_avg,
-    'bus_count' : bus_avg,
-    'subway_count' : subway_avg
-}])
-
-
-topics = [
-#    ('평균 전세가(만원)', seoul_df),
-#    ('평균 월세가(만원)', seoul_df),
-    ('store_count', store_df),
-    ('gym_count', gym_df),
-    ('park_count', park_df),
-    ('cafe_count', cafe_df),
-#    ('범죄율', crime_df),
-    ('lamp_count', lamp_df),
-    ('bus_count', bus_df),
-    ('subway_count', subway_df)
-]
-
-topic_names = [col_name for col_name, _ in topics]
-dong_list = store_df['dong_info'].unique()
-cols = st.columns(len(dong_list))
-
-input_dong = st.text_input("행정동을 입력하세요:")
-
-
-
-if input_dong in dong_list:
-    dong_values = []
-    seoul_means = []
-    for topic_name, df in topics:
-        val = df[df['dong_info'] == input_dong][topic_name].values[0]
-        dong_values.append(val)
-        seoul_mean = seoul_df[topic_name].values[0]
-        seoul_means.append(seoul_mean)
+### 4. TOP 3 시상대 시각화 ###
+def draw_podium_chart(top3_dongs):
+    regions = top3_dongs
+    colors = ["gold", "silver", "peru"]
+    heights = [2, 1.5, 1]
+    x_labels = ["🥈 2위", "🥇 1위", "🥉 3위"]
+    ordered_regions = [regions[1], regions[0], regions[2]]
+    ordered_colors = [colors[1], colors[0], colors[2]]
+    ordered_heights = [heights[1], heights[0], heights[2]]
 
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=topic_names,
-        y=dong_values,
-        name=input_dong,
-        marker_color='blue'
-    ))
-    fig.add_trace(go.Bar(
-        x=topic_names,
-        y=seoul_means,
-        name='서울시 평균',
-        marker_color=('grey')
-    ))
+    for i in range(3):
+        fig.add_trace(go.Bar(
+            x=[x_labels[i]],
+            y=[ordered_heights[i]],
+            marker_color=ordered_colors[i],
+            text=ordered_regions[i],
+            textposition='inside',
+            hoverinfo="skip"
+        ))
+
+    fig.update_layout(
+        title="슬세권 TOP 3",
+        height=350,
+        showlegend=False,
+        bargap=0,
+        xaxis=dict(title="", tickfont=dict(size=14)),
+        yaxis=dict(title="", showticklabels=False),
+        plot_bgcolor='rgba(0,0,0,0)',
+    )
+    st.plotly_chart(fig, key=f'{uuid.uuid4()}')
+
+### 5. 바 차트 시각화 ###
+def draw_comparison_chart(dong, seoul_df, topics):
+    topic_names = [col for col, _ in topics]
+    dong_values, seoul_means = [], []
+
+    for col_name, df in topics:
+        val = df[df['dong_info'] == dong][col_name].values
+        dong_values.append(val[0] if len(val) else 0)
+        seoul_means.append(seoul_df[col_name].values[0])
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=topic_names, y=dong_values, name=dong, marker_color='blue'))
+    fig.add_trace(go.Bar(x=topic_names, y=seoul_means, name='서울 평균', marker_color='grey'))
+
     fig.update_layout(
         barmode='group',
         bargap=0.15,
-        title=f'{input_dong}와 서울 평균 비교',
+        title=f'{dong}와 서울 평균 비교',
         xaxis_title="항목",
         yaxis_title="수치"
     )
-    st.plotly_chart(fig, use_container_width=True, key=f"{input_dong}_chart")
+    st.plotly_chart(fig, use_container_width=True, key=f"{dong}_chart")
 
-elif input_dong:
-    st.warning("존재하는 자치구명을 입력해 주세요.")
+### 6. 메인 앱 실행 ###
+def main():
 
-fig = None   # 클릭 전에는 fig 없음
+    st.set_page_config(layout="wide")
+    
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    dfs, total_dong_info = load_data(base_dir)
 
-top3 = total_dong_info.head(3) 
-top3_dongs = top3['dong_info'].tolist()
+    
+    weight = [0.5, 0.3, 0.2]
+    
 
-cols = st.columns(3)
-for i, dong in enumerate(top3_dongs):
-    if cols[i].button(f"{dong}"):
-        dong_values = []
-        seoul_means = []
-        for topic_name, df in topics:
-            filtered = df.loc[df['dong_info'] == dong, topic_name]
-            if not filtered.empty:
-                val = filtered.values[0]
-            else:
-                val = None
-            dong_values.append(val)
-            #print(f'데이터 프레임: {df}')
-            #print(f'topic_name: {topic_name}')
-            #print(f'detail: {df[df['dong_info'] == dong][topic_name]}')
-            #val = df[df['dong_info'] == dong][topic_name].values[0]
-            #val = df.loc[df['dong_info'] == dong][topic_name][0]
-            # dong_values.append(val)
-            seoul_mean = seoul_df[topic_name].values[0]
-            seoul_means.append(seoul_mean)
-        fig = go.Figure()
-        fig.add_trace(go.Bar(
-            x=topic_names,
-            y=dong_values,
-            name=dong,
-            marker_color='blue'
-        ))
-        fig.add_trace(go.Bar(
-            x=topic_names,
-            y=seoul_means,
-            name='서울 평균',
-            marker_color='grey'
-        ))
-        fig.update_layout(
-            barmode='group',
-            bargap=0.15,
-            title=f'{dong}와 서울 평균 비교',
-            xaxis_title="항목",
-            yaxis_title="수치"
-        )
-        st.plotly_chart(fig, use_container_width=True, key=f"{dong}_chart")
+    option1, option2, option3, submit = sidebar_input()
+    tmp_dict = {
+        '🌳 공원': 'park', 
+        '👟 헬스장': 'gym',
+        '🧋 카페': 'cafe', 
+        '🐤 안전': 'lamp', 
+        '🏪 편의점': 'store'
+    }
+    
+    with st.expander("🐤 슬세권이란?"):
+        st.markdown("""
+                    - 슬세권은 **'슬리퍼'** 와 **'~세권'** 을 합쳐 만든 신조어로, 슬리퍼를 신고 편하게 다닐 수 있는 거리 내에 편의시설 (마트, 영화관, 커피전문점, 은행 등)이 있는 주거 지역을 의미해요!
+                    - **편안한 복장으로 편리하게 생활 인프라를 이용** 할 수 있는 곳을 뜻합니다✨
+                    """)
+        
+    with st.expander("## 🙌 슬세권을 현명하게 이용하는 방법!"):
+        st.markdown("""
+                    1. 나는 슬리퍼를 신고 어디까지 갈 수 있을까?
+                    - 카페, 편의점, 헬스장, 공원, 안전 중에서 가장 중요하게 생각하는 편의시설 3가지를 선택해주세요.
 
-# 버튼이 아무것도 클릭되지 않은 경우엔 안내만
-if fig is None:
-    st.info("자치구 버튼을 클릭하면 해당 구와 서울 평균이 비교됩니다.")
+                    2. 내 기준에 딱 맞는 동네 TOP 3 보기
+                    - 선택한 인프라가 제일 잘 갖춰진 동네들을 시상대처럼 1, 2, 3위로 뽑아줍니다! (슬리퍼 신고 살기 딱 좋은 동네들이에요😎)
+
+                    3. 이 동네가 좋은 이유는 뭘까?
+                    - 서울 평균이랑 비교한 바 그래프로 진짜 편의시설이 많은지 수치로 확인해보세요.
+
+                    4. 서울 전체를 둘러보고 싶다면?
+                    - 왼쪽 메뉴에서 히트맵을 눌러보세요. 지역별로 어떤 시설이 얼마나 많은지 한눈에 보여줍니다!
+
+                    > **슬리퍼는 편한데, 동네까지 불편하면 안 되잖아요? 슬세권으로 내 생활 반경을 똑똑하게 찾아보세요 👟✨**
+                    """)
+    
+    if option1 and option2 and option3 and submit :
+    # if not option1 or not option2 or not option3 or not submit :
+        # st.stop()
+        p1 = tmp_dict[option1] if option1 in tmp_dict else ''
+        p2 = tmp_dict[option2] if option2 in tmp_dict else ''
+        p3 = tmp_dict[option3] if option3 in tmp_dict else ''
+        
+        priority = [p1, p2, p3]
+        
+        total_dong_info = calculate_grades(dfs, total_dong_info, priority, weight)
+        top3 = total_dong_info.head(3)['dong_info'].tolist()
+        
+
+        # draw_podium_chart(top3)
+        st.session_state.priority = priority
+        st.session_state.weight = weight
+        st.session_state.total_dong_info = total_dong_info
+        st.session_state.top3 = total_dong_info.head(3)['dong_info'].tolist()
+        st.session_state.selected_dong = st.session_state.top3[0]  # 1위 자동 선택
+        
+        
+
+        # 서울 평균 계산용
+        topic_keys = ["store", "gym", "park", "cafe", "lamp", "bus", "subway"]
+        topics = []
+        for key in topic_keys:
+            df = dfs[f"{key}_df"].rename(columns={'count': f'{key}_count'})
+            topics.append((f'{key}_count', df))
+        
+        seoul_df = pd.DataFrame({col: df[col].mean() for col, df in topics}, index=[0])
+        
+        st.session_state.seoul_df = seoul_df
+        st.session_state.topics = topics
+
+        # draw_comparison_chart(top3[0], seoul_df, topics)
+
+        # # 사용자 직접 입력
+        # # input_dong = st.text_input("행정동을 입력하세요:")
+        # # if input_dong:
+        # #     if input_dong in total_dong_info['dong_info'].values:
+        # #         draw_comparison_chart(input_dong, seoul_df, topics)
+        # #     else:
+        # #         st.warning("존재하는 행정동을 입력해 주세요.")
+
+        # # TOP 3 버튼
+        # cols = st.columns(3)
+        # clicked = False
+        print("click1")
+        # st.button("hey")
+        # for i, dong in enumerate(top3):
+        #     if cols[i].button(f"{dong}"):
+        #         print("click", dong)
+        #         draw_comparison_chart(dong, seoul_df, topics)
+        #         clicked = True
+
+    # 2. 버튼은 항상 렌더링되도록 (데이터가 준비된 경우만)
+    if 'top3' in st.session_state:
+        draw_podium_chart(st.session_state.top3)
+        st.markdown("### 🏆 TOP 3 지역")
+        cols = st.columns(3)
+        
+        for i, dong in enumerate(st.session_state.top3):
+            if cols[i].button(f"{dong}"):
+                st.session_state.selected_dong = dong
+                print(f"✅ 버튼 클릭됨: {dong}")
+    
+    # 3. 선택된 동에 대한 바 차트 출력
+    if 'selected_dong' in st.session_state:
+        draw_comparison_chart(st.session_state.selected_dong, st.session_state.seoul_df, st.session_state.topics)
+    # if not clicked:
+    #     st.info("자치구 버튼을 클릭하면 해당 구와 서울 평균이 비교됩니다.")
+
+if __name__ == "__main__":
+    main()
