@@ -1,5 +1,6 @@
 import plotly.graph_objects as go
 import pandas as pd
+import streamlit as st
 
 # 데이터 생성
 home_df = pd.DataFrame({
@@ -68,4 +69,4 @@ fig.update_layout(
     barmode='group'
 )
 
-fig.show()
+st.plotly_chart(fig)
