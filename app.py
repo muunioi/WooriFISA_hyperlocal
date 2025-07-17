@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import matplotlib
 import plotly.express as px
+import plotly.figure_factory as ff
 
 
 ## INPUT ##
@@ -87,3 +88,207 @@ fig = go.Figure(data=[
 # Change the bar mode
 fig.update_layout(barmode='group')
 st.plotly_chart(fig)
+
+
+## MAP ##
+
+import os, json
+
+!git clone https://github.com/raqoon886/Local_HangJeongDong.git
+os.chdir('./Local_HangJeongDong')
+
+with open('C://ITStudy//01_python//streamlit_demo//hangjeongdong_서울특별시.geojson', 'r') as f:
+    seoul_geo = json.load(f)
+    
+seoul_info = pd.read_csv('C://ITStudy//01_python//streamlit_demo//sample.txt', delimiter='\t')
+seoul_info = seoul_info.iloc[3:,:]
+seoul_info = seoul_info[seoul_info['동']!='소계']
+seoul_info['full_name'] = '서울특별시'+' '+seoul_info['자치구']+' '+seoul_info['동']
+seoul_info['full_name'] = seoul_info['full_name'].apply(lambda x: x.replace('.','·'))
+seoul_info['인구'] = seoul_info['인구'].apply(lambda x: int(''.join(x.split(','))))
+
+fig = px.choropleth_mapbox(seoul_info,
+                           geojson=seoul_geo,
+                           locations='full_name',
+                           color='인구',
+                           color_continuous_scale='viridis', featureidkey = 'properties.adm_nm',
+                           mapbox_style='carto-positron',
+                           zoom=9.5,
+                           center = {"lat": 37.563383, "lon": 126.996039},
+                           opacity=0.5,
+                          )
+
+fig
+
+
+## Bar chart ## 
+
+home = {
+    '자치구': ['강남구', '서초구', '송파구', '마포구', '강서구', '관악구', '노원구'],
+    '평균 전세가(만원)': [85, 82, 76, 63, 50, 46, 39],
+    '평균 월세가(만원)': [180, 175, 160, 145, 120, 110, 95]
+}
+
+convenience_store = {
+    '자치구': ['강남구', '서초구', '송파구', '마포구', '강서구', '관악구', '노원구'],
+    '편의점 수': [10, 12, 11, 9,12,15,7]
+}
+
+gym = {
+    '자치구': ['강남구', '서초구', '송파구', '마포구', '강서구', '관악구', '노원구'],
+    '헬스장 수': [21, 12, 19, 15, 17, 9, 23]
+}
+
+park = {
+    '자치구': ['강남구', '서초구', '송파구', '마포구', '강서구', '관악구', '노원구'],
+    '공원 수': [3, 4, 11, 2, 6, 7, 9]
+}
+
+cafe = {
+    '자치구': ['강남구', '서초구', '송파구', '마포구', '강서구', '관악구', '노원구'],
+    '카페 수': [25, 22, 12, 30, 23, 28, 19]
+}
+
+crime = {
+    '자치구': ['강남구', '서초구', '송파구', '마포구', '강서구', '관악구', '노원구'],
+    '범죄율': [6, 8, 12, 3, 5, 7, 11]
+}
+
+lamp = {
+    '자치구': ['강남구', '서초구', '송파구', '마포구', '강서구', '관악구', '노원구'],
+    '가로등 수': [51, 90, 70, 66, 95, 83, 89]
+}
+
+bus = {
+    '자치구': ['강남구', '서초구', '송파구', '마포구', '강서구', '관악구', '노원구'],
+    '버스정류장 수': [30, 23, 50, 34, 62, 54, 60]
+}
+
+subway = {
+    '자치구': ['강남구', '서초구', '송파구', '마포구', '강서구', '관악구', '노원구'],
+    '지하철 호선 수': [6, 7, 4, 5, 6, 7, 4]
+}
+
+seoul_home = {
+    '평균 전세가(만원)': [65],
+    '평균 월세가(만원)': [135],
+    '편의점 수': [8],
+    '헬스장 수': [16],
+    '공원 수': [6],
+    '카페 수': [28],
+    '범죄율': [5],
+    '가로등 수': [75],
+    '버스정류장 수': [32],
+    '지하철 호선 수': [11]
+}
+
+home_df = pd.DataFrame(home)
+convenience_store_df = pd.DataFrame(convenience_store)
+gym_df = pd.DataFrame(gym)
+park_df = pd.DataFrame(park)
+cafe_df = pd.DataFrame(cafe)
+crime_df = pd.DataFrame(crime)
+lamp_df = pd.DataFrame(lamp)
+bus_df = pd.DataFrame(bus)
+subway_df = pd.DataFrame(subway)
+seoul_df = pd.DataFrame(seoul_home)
+
+
+
+
+topics = [
+    ('평균 전세가(만원)', home_df),
+    ('평균 월세가(만원)', home_df),
+    ('편의점 수', convenience_store_df),
+    ('헬스장 수', gym_df),
+    ('공원 수', park_df),
+    ('카페 수', cafe_df),
+    ('범죄율', crime_df),
+    ('가로등 수', lamp_df),
+    ('버스정류장 수', bus_df),
+    ('지하철 호선 수', subway_df)
+]
+
+topic_names = [col_name for col_name, _ in topics]
+gu_list = home_df['자치구'].unique()   # 자치구 리스트는 home_df에서 가져오는게 안전
+cols = st.columns(len(gu_list))
+
+input_gu = st.text_input("자치구를 입력하세요:")
+
+
+
+if input_gu in gu_list:
+    gu_values = []
+    seoul_means = []
+    for topic_name, df in topics:
+        val = df[df['자치구'] == input_gu][topic_name].values[0]
+        gu_values.append(val)
+        seoul_mean = seoul_df[topic_name].values[0]
+        seoul_means.append(seoul_mean)
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=topic_names,
+        y=gu_values,
+        name=input_gu,
+        marker_color='blue'
+    ))
+    fig.add_trace(go.Bar(
+        x=topic_names,
+        y=seoul_means,
+        name='서울시 평균',
+        marker_color=('grey')
+    ))
+    fig.update_layout(
+        barmode='group',
+        bargap=0.15,
+        title=f'{input_gu}와 서울 평균 비교',
+        xaxis_title="항목",
+        yaxis_title="수치"
+    )
+    st.plotly_chart(fig, use_container_width=True, key=f"{input_gu}_chart")
+
+elif input_gu:
+    st.warning("존재하는 자치구명을 입력해 주세요.")
+
+fig = None   # 클릭 전에는 fig 없음
+
+for i, gu in enumerate(gu_list):
+    if cols[i].button(f'{gu}'):
+        # 해당 자치구의 값 추출
+        gu_values = []
+        seoul_means = []
+        for topic_name, df in topics:
+            # 자치구 값
+            val = df[df['자치구'] == gu][topic_name].values[0]
+            gu_values.append(val)
+            # 서울 평균값
+            seoul_mean = seoul_df[topic_name].values[0]
+            seoul_means.append(seoul_mean)
+        
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=topic_names,
+            y=gu_values,
+            name=gu,
+            marker_color = 'blue'
+        ))
+        fig.add_trace(go.Bar(
+            x=topic_names,
+            y=seoul_means,
+            name='서울시 평균',
+            marker_color='grey'
+        ))
+        fig.update_layout(
+            barmode='group',
+            bargap=0.15,
+            title=f'{gu}와 서울 평균 비교',
+            xaxis_title="항목",
+            yaxis_title="수치",
+            yaxis=dict(range=[0, 200])
+        )
+        st.plotly_chart(fig, use_container_width=True, key=f"{gu}_chart")
+
+# 버튼이 아무것도 클릭되지 않은 경우엔 안내만
+if fig is None:
+    st.info("자치구 버튼을 클릭하면 해당 구와 서울 평균이 비교됩니다.")
