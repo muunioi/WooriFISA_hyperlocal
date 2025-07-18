@@ -58,9 +58,10 @@ def sidebar_input():
 
 ### 4. TOP 3 시상대 시각화 ###
 def draw_podium_chart(top3_dongs):
+
     regions = top3_dongs
     colors = ["gold", "silver", "peru"]
-    heights = [2, 1.5, 1]
+    heights = [3, 2, 1]
     x_labels = ["🥈 2위", "🥇 1위", "🥉 3위"]
     ordered_regions = [regions[1], regions[0], regions[2]]
     ordered_colors = [colors[1], colors[0], colors[2]]
@@ -105,7 +106,7 @@ def draw_comparison_chart(dong, seoul_df, topics):
     fig.update_layout(
         barmode='group',
         bargap=0.15,
-        title=f'{dong}와 서울 평균 비교',
+        title=f'{dong}과 서울 평균 비교',
         xaxis_title="항목",
         yaxis_title="수치"
     )
@@ -179,10 +180,11 @@ def main():
 
         # 서울 평균 계산용
         topic_keys = ["store", "gym", "park", "cafe", "lamp", "bus", "subway"]
+        topic_keys_kr = ["편의점", "헬스장", "공원", "카페", "가로등", "버스", "지하철"]
         topics = []
-        for key in topic_keys:
-            df = dfs[f"{key}_df"].rename(columns={'count': f'{key}_count'})
-            topics.append((f'{key}_count', df))
+        for key, key_kr in zip(topic_keys, topic_keys_kr):
+            df = dfs[f"{key}_df"].rename(columns={'count': f'{key_kr}'})
+            topics.append((f'{key_kr}', df))
         
         seoul_df = pd.DataFrame({col: df[col].mean() for col, df in topics}, index=[0])
         
@@ -213,7 +215,10 @@ def main():
     # 2. 버튼은 항상 렌더링되도록 (데이터가 준비된 경우만)
     if 'top3' in st.session_state:
         draw_podium_chart(st.session_state.top3)
-        st.markdown("### 🏆 TOP 3 지역")
+
+        st.markdown(" ----- ")
+        st.markdown("## 🏆 TOP 3 지역")
+        st.markdown(" ")
         cols = st.columns(3)
         
         for i, dong in enumerate(st.session_state.top3):
