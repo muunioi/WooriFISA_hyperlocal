@@ -5,13 +5,13 @@ import pandas as pd
 base_dir = os.path.dirname(os.path.abspath(__file__))  # 현재 파일 위치
 print(base_dir)
 # 전체 dong에 기본값 0인 grade column 추가 (추후 점수을 합산할 data frame)
-total_dong_info = pd.read_csv(f'{base_dir}/../data/dong_gu_info.csv')
+total_dong_info = pd.read_csv(f'{base_dir}/data/dong_gu_info.csv')
 total_dong_info["grade"] = 0
 filenames = ["data_2_cal","data_5_cal","data_6_cafe_cal","data_6_gym_cal","data_6_store_cal", "data_7_cal","data_9_cal"]
 df_name = ["park_df","lamp_df", "cafe_df", "gym_df", "store_df", "bus_df", "subway_df"]
 dfs = {}
 for i, name in enumerate(df_name) :
-    dfs[name] = pd.read_csv(f'{base_dir}/../data/{filenames[i]}.csv')
+    dfs[name] = pd.read_csv(f'{base_dir}/data/{filenames[i]}.csv')
 
 priority = ["park","lamp","cafe"]
 weight = [0.5, 0.3, 0.2]
